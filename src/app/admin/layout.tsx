@@ -43,7 +43,7 @@ export default function AdminLayout({
 
   // The login page renders standalone, without the dashboard chrome.
   if (isLoginPage) return <>{children}</>;
-  if (!isAuthenticated("admin") || !user) return null;
+  if (!isAuthenticated("admin")) return null;
 
   const handleLogout = () => {
     logout();
@@ -63,7 +63,7 @@ export default function AdminLayout({
             Store dashboard
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Signed in as {user.name}
+            Signed in as {user?.name ?? "Haven Admin"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

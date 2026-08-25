@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -53,11 +52,9 @@ function loadSession(): AuthUser | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    setUser(loadSession());
-  }, []);
+  // Initialize synchronously from the stored session so guarded layouts
+  // never render a "not authenticated" frame on first paint.
+  const [user, setUser] = useState<AuthUser | null>(() => loadSession());
 
   const login = useCallback((email: string, password: string, role?: UserRole) => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -94,8 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = useCallback(
     (role?: UserRole) => {
-      if (!user) return false;
-      if (role && user.role !== role) return false;
+      // Fall back to the persisted session: login() writes localStorage
+      // synchronously before router.push(), so a guard that renders during
+      // the state-flush window can still authorize the navigation.
+      const current = user ?? loadSession();
+      if (!current) return false;
+      if (role && current.role !== role) return false;
       return true;
     },
     [user]

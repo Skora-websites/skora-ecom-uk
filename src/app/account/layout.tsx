@@ -30,7 +30,7 @@ export default function AccountLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -40,7 +40,7 @@ export default function AccountLayout({
     }
   }, [isAuthenticated, router]);
 
-  if (!isAuthenticated("customer") || !user) {
+  if (!isAuthenticated("customer")) {
     return null;
   }
 
