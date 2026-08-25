@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
+import { NotificationCenter } from "@/components/admin/notification-center";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ export default function AdminLayout({
               <Store className="size-4" /> View store
             </Link>
           </Button>
+          <NotificationCenter />
           <Button variant="outline" onClick={handleLogout}>
             <LogOut className="size-4" /> Sign out
           </Button>
