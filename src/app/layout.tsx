@@ -3,8 +3,7 @@ import { Figtree, Fraunces } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { CartProvider } from "@/lib/cart";
-import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
+import { StorefrontChrome } from "@/components/storefront-chrome";
 import { CartSheet } from "@/components/cart-sheet";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -66,9 +65,8 @@ export default function RootLayout({
       <body className={`${figtree.variable} ${fraunces.variable} antialiased`}>
         <AuthProvider>
           <CartProvider>
-            <SiteHeader />
-            <main id="main">{children}</main>
-            <SiteFooter />
+            <StorefrontChrome />
+                        <main id="main">{children}</main>
             <CartSheet />
             <Toaster position="top-center" richColors closeButton />
           </CartProvider>
