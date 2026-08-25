@@ -15,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { categories, products, type CategorySlug } from "@/lib/products";
+import { categories, type CategorySlug } from "@/lib/products";
+import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type SortKey = "featured" | "price-asc" | "price-desc" | "new";
@@ -41,6 +42,8 @@ export function ShopView({
   const category = (searchParams.get("category") ?? initialCategory) as CategoryFilter;
   const sort = (searchParams.get("sort") ?? initialSort) as SortKey;
 
+  const { liveProducts } = useStore();
+
   const setParam = (key: "category" | "sort", value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all" || value === "featured") {
@@ -54,8 +57,8 @@ export function ShopView({
   const filtered = useMemo(() => {
     const list =
       category === "all"
-        ? [...products]
-        : products.filter((p) => p.category === category);
+        ? [...liveProducts]
+        : liveProducts.filter((p) => p.category === category);
     switch (sort) {
       case "price-asc":
         return [...list].sort((a, b) => a.price - b.price);
@@ -68,7 +71,7 @@ export function ShopView({
       default:
         return list;
     }
-  }, [category, sort]);
+  }, [category, sort, liveProducts]);
 
   const activeCategoryName =
     category === "all"

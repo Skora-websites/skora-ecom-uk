@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronRight,
   Minus,
+  PackageX,
   Plus,
   RotateCcw,
   ShieldCheck,
@@ -31,23 +32,44 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCart } from "@/lib/cart";
+import { useStore } from "@/lib/store";
 import { formatPrice, getCategory, type Product } from "@/lib/products";
 
 interface ProductDetailProps {
   product: Product;
-  related: Product[];
 }
 
-export function ProductDetail({ product, related }: ProductDetailProps) {
+export function ProductDetail({ product }: ProductDetailProps) {
   const { add, openCart } = useCart();
-  const category = getCategory(product.category);
-  const [finish, setFinish] = useState(product.finishOptions[0]);
+  const { products: storeProducts } = useStore();
+
+  // Prefer the live store version so admin edits are reflected instantly.
+  const stored = storeProducts.find((p) => p.slug === product.slug);
+  const isHidden = stored?.status === "draft";
+  const current = stored && stored.status === "active" ? stored : product;
+
+  const category = getCategory(current.category);
+  const [finish, setFinish] = useState(current.finishOptions[0]);
   const [qty, setQty] = useState(1);
 
+  const related = useMemo(() => {
+    const live = storeProducts.filter(
+      (p) => p.status === "active" && p.slug !== current.slug
+    );
+    const sameCategory = live.filter(
+      (p) => p.category === current.category
+    );
+    if (sameCategory.length >= 4) return sameCategory.slice(0, 4);
+    const others = live
+      .filter((p) => p.category !== current.category)
+      .slice(0, 4 - sameCategory.length);
+    return [...sameCategory, ...others];
+  }, [storeProducts, current]);
+
   const handleAdd = () => {
-    add(product, qty);
+    add(current, qty);
     toast.success(
-      `${qty} × ${product.name} added to your bag`,
+      `${qty} × ${current.name} added to your bag`,
       {
         action: {
           label: "View bag",
@@ -56,6 +78,26 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
       }
     );
   };
+
+  if (isHidden) {
+    return (
+      <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-24 text-center sm:px-6 lg:px-8">
+        <span className="grid size-16 place-items-center rounded-3xl bg-secondary text-muted-foreground">
+          <PackageX className="size-8" />
+        </span>
+        <h1 className="font-display text-2xl">
+          This product isn&apos;t available right now
+        </h1>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          It&apos;s being prepared by our team. Browse the rest of the
+          collection in the meantime.
+        </p>
+        <Button asChild variant="accent">
+          <Link href="/shop">Shop the collection</Link>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -82,7 +124,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
           </li>
           <li>
             <Link
-              href={`/shop?category=${product.category}`}
+              href={`/shop?category=${current.category}`}
               className="transition-colors hover:text-primary"
             >
               {category?.name}
@@ -92,7 +134,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
             <ChevronRight className="size-4" />
           </li>
           <li aria-current="page" className="font-medium text-foreground">
-            {product.name}
+            {current.name}
           </li>
         </ol>
       </nav>
@@ -100,14 +142,14 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
       <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-14">
         <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-muted lg:sticky lg:top-24">
           <ProductImage
-            src={product.image}
-            alt={`${product.name} — ${category?.name} by Haven`}
+            src={current.image}
+            alt={`${current.name} — ${category?.name} by Haven`}
             sizes="(min-width: 1024px) 50vw, 100vw"
             priority
           />
-          {product.tag && (
+          {current.tag && (
             <span className="absolute left-4 top-4 rounded-full bg-accent px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent-foreground">
-              {product.tag}
+              {current.tag}
             </span>
           )}
         </div>
@@ -119,25 +161,25 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
             </p>
           )}
           <h1 className="text-balance font-display text-4xl leading-tight sm:text-5xl">
-            {product.name}
+            {current.name}
           </h1>
           <div className="flex items-center gap-2 text-sm">
             <span className="flex items-center gap-1 font-semibold">
               <Star className="size-4 fill-accent text-accent" />
-              {product.rating.toFixed(1)}
+              {current.rating.toFixed(1)}
             </span>
             <span className="text-muted-foreground">
-              · {product.reviews} reviews
+              · {current.reviews} reviews
             </span>
           </div>
 
           <div className="flex items-baseline gap-3">
             <p className="font-display text-3xl font-semibold">
-              {formatPrice(product.price)}
+              {formatPrice(current.price)}
             </p>
-            {product.compareAt && (
+            {current.compareAt && (
               <p className="text-lg text-muted-foreground line-through">
-                {formatPrice(product.compareAt)}
+                {formatPrice(current.compareAt)}
               </p>
             )}
           </div>
@@ -146,7 +188,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
           </p>
 
           <p className="text-pretty leading-relaxed text-muted-foreground">
-            {product.description}
+            {current.description}
           </p>
 
           <div className="flex flex-col gap-2">
@@ -161,7 +203,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {product.finishOptions.map((option) => (
+                {current.finishOptions.map((option) => (
                   <SelectItem key={option} value={option}>
                     {option}
                   </SelectItem>
@@ -203,7 +245,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
               onClick={handleAdd}
             >
               <ShoppingBag className="size-5" />
-              Add to bag · {formatPrice(product.price * qty)}
+              Add to bag · {formatPrice(current.price * qty)}
             </Button>
           </div>
 
@@ -227,7 +269,7 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
               <AccordionTrigger>Product details</AccordionTrigger>
               <AccordionContent>
                 <ul className="flex list-disc flex-col gap-2 pl-5 text-sm leading-relaxed text-muted-foreground">
-                  {product.details.map((detail) => (
+                  {current.details.map((detail) => (
                     <li key={detail}>{detail}</li>
                   ))}
                 </ul>
@@ -259,9 +301,9 @@ export function ProductDetail({ product, related }: ProductDetailProps) {
           <SectionHeading
             eyebrow="Complete the room"
             title="You may also like"
-            actionHref={`/shop?category=${product.category}`}
-                        actionLabel={`Shop all ${category?.name ?? "related"}`}
-                        className="[&_a]:w-fit"
+            actionHref={`/shop?category=${current.category}`}
+            actionLabel={`Shop all ${category?.name ?? "related"}`}
+            className="[&_a]:w-fit"
           />
         </div>
         <div className="mt-8">

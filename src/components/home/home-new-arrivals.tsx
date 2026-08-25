@@ -2,10 +2,13 @@
 
 import { ProductCard } from "@/components/product-card";
 import { SectionHeading } from "@/components/section-heading";
-import { products } from "@/lib/products";
+import { useStore } from "@/lib/store";
 
 export function HomeNewArrivals() {
-  const newArrivals = products.filter((p) => p.tag === "new").slice(0, 4);
+  const { liveProducts } = useStore();
+  const newArrivals = liveProducts
+    .filter((p) => p.tag === "new")
+    .slice(0, 4);
 
   return (
     <section className="bg-secondary/40 py-16">

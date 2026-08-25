@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { ProductDetail } from "@/components/product-detail";
+import { StoreProductPage } from "@/components/product-page";
 import {
   formatPrice,
   getCategory,
   getProduct,
-  getRelated,
   products,
 } from "@/lib/products";
 
@@ -44,9 +43,8 @@ export async function generateMetadata({
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
   const product = getProduct(slug);
-  if (!product) notFound();
+  if (!product) return <StoreProductPage slug={slug} />;
 
-  const related = getRelated(product);
   const category = getCategory(product.category);
 
   const productJsonLd = {
@@ -78,7 +76,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
       />
-      <ProductDetail product={product} related={related} />
+      <ProductDetail product={product} />
     </>
   );
 }

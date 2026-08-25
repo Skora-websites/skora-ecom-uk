@@ -1,9 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PackageSearch, Search, Star } from "lucide-react";
+import {
+  PackageSearch,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -21,31 +30,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ProductImage } from "@/components/product-image";
 import {
-  categories,
-  formatPrice,
-  getCategory,
-  products,
-} from "@/lib/products";
-
-type ProductStatus = "active" | "draft";
-type CategoryFilter = "all" | string;
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ProductImage } from "@/components/product-image";
+import { ProductFormDialog } from "@/components/admin/product-form-dialog";
+import { categories, formatPrice, getCategory } from "@/lib/products";
+import { useStore, type StoreProduct } from "@/lib/store";
 
 export default function AdminProductsPage() {
-  const [statusBySlug, setStatusBySlug] = useState<Record<string, ProductStatus>>(
-    () => Object.fromEntries(products.map((p) => [p.slug, "active"]))
-  );
+  const { products, toggleProductStatus, deleteProduct, resetStore } =
+    useStore();
   const [query, setQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<StoreProduct | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StoreProduct | null>(null);
 
-  const toggleStatus = (slug: string) => {
-    const next = statusBySlug[slug] === "active" ? "draft" : "active";
-    setStatusBySlug((prev) => ({ ...prev, [slug]: next }));
-    toast.success(
-      next === "active" ? "Product is now live" : "Product moved to draft"
-    );
-  };
+  const liveCount = products.filter((p) => p.status === "active").length;
+  const draftCount = products.length - liveCount;
 
   const filtered = useMemo(
     () =>
@@ -59,16 +69,58 @@ export default function AdminProductsPage() {
           p.material.toLowerCase().includes(q);
         return matchCategory && matchQuery;
       }),
-    [categoryFilter, query]
+    [categoryFilter, query, products]
   );
+
+  const openAdd = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (product: StoreProduct) => {
+    setEditing(product);
+    setFormOpen(true);
+  };
+
+  const toggleStatus = (product: StoreProduct) => {
+    const next = product.status === "active" ? "draft" : "active";
+    toggleProductStatus(product.slug);
+    toast.success(
+      next === "active"
+        ? `“${product.name}” is now live`
+        : `“${product.name}” moved to draft`
+    );
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteProduct(deleteTarget.slug);
+    toast.success(`“${deleteTarget.name}” deleted`);
+    setDeleteTarget(null);
+  };
+
+  const handleReset = () => {
+    resetStore();
+    toast.success("Store restored to the demo catalogue");
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-2xl font-semibold">Products</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {products.length} products · toggle live status
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-semibold">Products</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {products.length} products · {liveCount} live · {draftCount} draft
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={handleReset}>
+            <RotateCcw className="size-4" /> Reset demo data
+          </Button>
+          <Button onClick={openAdd}>
+            <Plus className="size-4" /> Add product
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -99,28 +151,36 @@ export default function AdminProductsPage() {
         </Select>
       </div>
 
-      <div className="rounded-3xl border bg-card p-2 sm:p-4">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="text-right">Price</TableHead>
-              <TableHead className="text-right">Rating</TableHead>
-              <TableHead>Tag</TableHead>
-              <TableHead className="text-right">Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
+      {filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-3xl border bg-card p-10 text-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-secondary text-muted-foreground">
+            <PackageSearch className="size-7" />
+          </span>
+          <p className="font-medium">No products found</p>
+          <p className="max-w-sm text-sm text-muted-foreground">
+            Try a different search or add a new product to the catalogue.
+          </p>
+          <Button onClick={openAdd} className="mt-1">
+            <Plus className="size-4" /> Add product
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-3xl border bg-card p-2 sm:p-4">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                  No products match your search.
-                </TableCell>
+                <TableHead>Product</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Rating</TableHead>
+                <TableHead>Tag</TableHead>
+                <TableHead className="text-right">Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              filtered.map((product) => {
-                const isActive = statusBySlug[product.slug] === "active";
+            </TableHeader>
+            <TableBody>
+              {filtered.map((product) => {
+                const isActive = product.status === "active";
                 return (
                   <TableRow key={product.slug}>
                     <TableCell>
@@ -163,7 +223,9 @@ export default function AdminProductsPage() {
                       {product.tag ? (
                         <Badge
                           variant={
-                            product.tag === "bestseller" ? "default" : "secondary"
+                            product.tag === "bestseller"
+                              ? "default"
+                              : "secondary"
                           }
                           className="rounded-full"
                         >
@@ -177,23 +239,79 @@ export default function AdminProductsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Switch
                           checked={isActive}
-                          onCheckedChange={() => toggleStatus(product.slug)}
+                          onCheckedChange={() => toggleStatus(product)}
                           aria-label={`Toggle ${product.name}`}
                         />
                         <span
-                          className={`text-xs font-semibold ${isActive ? "text-emerald-700" : "text-muted-foreground"}`}
+                          className={`text-xs font-semibold ${
+                            isActive
+                              ? "text-emerald-700"
+                              : "text-muted-foreground"
+                          }`}
                         >
                           {isActive ? "Active" : "Draft"}
                         </span>
                       </div>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(product)}
+                          aria-label={`Edit ${product.name}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(product)}
+                          aria-label={`Delete ${product.name}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <ProductFormDialog
+        open={formOpen}
+        existing={editing}
+        onOpenChange={setFormOpen}
+        onClose={() => setFormOpen(false)}
+      />
+
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the product from the storefront and the catalogue.
+              This action can't be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Delete product
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
