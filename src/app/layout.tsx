@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Figtree, Fraunces } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth";
 import { CartProvider } from "@/lib/cart";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
@@ -63,13 +64,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${figtree.variable} ${fraunces.variable} antialiased`}>
-        <CartProvider>
-          <SiteHeader />
-          <main id="main">{children}</main>
-          <SiteFooter />
-          <CartSheet />
-          <Toaster position="top-center" richColors closeButton />
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <SiteHeader />
+            <main id="main">{children}</main>
+            <SiteFooter />
+            <CartSheet />
+            <Toaster position="top-center" richColors closeButton />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

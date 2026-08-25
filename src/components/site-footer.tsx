@@ -25,6 +25,7 @@ const helpLinks = [
   { label: "Returns", href: "/" },
   { label: "10-year guarantee", href: "/" },
   { label: "Contact us", href: "/" },
+  { label: "Staff sign in", href: "/admin/login" },
 ];
 
 export function SiteFooter() {

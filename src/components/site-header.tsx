@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Armchair, Menu, Search, ShoppingBag, Truck } from "lucide-react";
+import { Armchair, Menu, Search, ShoppingBag, Truck, User } from "lucide-react";
 import { useState } from "react";
 import {
   Sheet,
@@ -87,6 +87,13 @@ export function SiteHeader() {
               className="grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary"
             >
               <Search className="size-5" />
+            </Link>
+            <Link
+              href="/account"
+              aria-label="Your account"
+              className="grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-secondary"
+            >
+              <User className="size-5" />
             </Link>
             <button
               type="button"
