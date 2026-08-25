@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ImagePlus, Link as LinkIcon, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { categories } from "@/lib/products";
 import { saveProduct, type StoreProduct } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 const CATEGORY_SLUGS = [
   "sofas",
@@ -83,6 +85,46 @@ type FormValues = z.infer<typeof schema>;
 
 const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?auto=format&fit=crop&w=1400&q=80";
+
+function isDataUrl(value: string): boolean {
+  return value.startsWith("data:image/");
+}
+
+/**
+ * Reads an image file and returns a compressed JPEG data URL (max 1200px)
+ * so uploaded photos stay small enough for localStorage.
+ */
+function readAndResizeImage(
+  file: File,
+  maxDim = 1200,
+  quality = 0.82
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(image.width, image.height));
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas is not available"));
+          return;
+        }
+        ctx.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      image.onerror = () => reject(new Error("Could not read that image"));
+      image.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error("Could not read that file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 interface ProductFormDialogProps {
   open: boolean;
@@ -137,9 +179,35 @@ export function ProductFormDialog({
     defaultValues: toFormValues(existing),
   });
 
+  const [imageMode, setImageMode] = useState<"upload" | "url">("url");
+  const imageValue = form.watch("image");
+
   useEffect(() => {
-    if (open) form.reset(toFormValues(existing));
+    if (open) {
+      const values = toFormValues(existing);
+      form.reset(values);
+      setImageMode(isDataUrl(values.image) ? "upload" : "url");
+    }
   }, [open, existing, form]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await readAndResizeImage(file);
+      form.setValue("image", dataUrl, { shouldDirty: true });
+      setImageMode("upload");
+    } catch {
+      toast.error("Couldn't read that image — try another file");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const removeImage = () => {
+    form.setValue("image", "", { shouldDirty: true });
+    setImageMode("url");
+  };
 
   const handleSubmit = (values: FormValues) => {
     const saved = saveProduct(
@@ -370,26 +438,117 @@ export function ProductFormDialog({
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="image"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Image URL</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="https://…"
-                      className="h-11 rounded-full"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Leave blank to use a placeholder image.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <FormLabel className="mb-0">Product image</FormLabel>
+                            <div className="flex rounded-full bg-secondary p-1" role="tablist" aria-label="Image source">
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={imageMode === "upload"}
+                                onClick={() => setImageMode("upload")}
+                                className={cn(
+                                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                                  imageMode === "upload"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                <Upload className="size-3.5" /> Upload
+                              </button>
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={imageMode === "url"}
+                                onClick={() => setImageMode("url")}
+                                className={cn(
+                                  "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                                  imageMode === "url"
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                <LinkIcon className="size-3.5" /> URL
+                              </button>
+                            </div>
+                          </div>
+            
+                          {imageMode === "upload" ? (
+                            <>
+                              <label className="group relative flex min-h-44 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border-2 border-dashed border-border bg-secondary/30 p-4 text-center transition-colors hover:border-primary hover:bg-secondary/50">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="sr-only"
+                                  onChange={handleImageUpload}
+                                  aria-label="Upload product image"
+                                />
+                                {imageValue ? (
+                                  <>
+                                    <img
+                                      src={imageValue}
+                                      alt="Product image preview"
+                                      className="h-44 w-full rounded-xl object-cover"
+                                    />
+                                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-4 pb-3 pt-8 text-xs font-semibold text-white">
+                                      Click to replace
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="grid size-12 place-items-center rounded-2xl bg-background text-primary shadow-sm">
+                                      <ImagePlus className="size-6" />
+                                    </span>
+                                    <span className="text-sm font-medium">Click to upload a photo</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      PNG or JPG — automatically resized for the store
+                                    </span>
+                                  </>
+                                )}
+                              </label>
+                              {imageValue && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={removeImage}
+                                  className="w-fit text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="size-4" /> Remove image
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <FormField
+                                control={form.control}
+                                name="image"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="https://images.unsplash.com/…"
+                                        className="h-11 rounded-full"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      Paste an image URL, or switch to Upload to use a photo from your device.
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              {imageValue && imageValue.startsWith("http") && (
+                                <img
+                                  src={imageValue}
+                                  alt="Product image preview"
+                                  className="h-32 w-full rounded-2xl border object-cover"
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
 
             <FormField
               control={form.control}
