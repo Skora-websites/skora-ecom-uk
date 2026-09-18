@@ -171,7 +171,6 @@ export function SiteFooter() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-primary-foreground/15 pt-6 text-xs text-primary-foreground/60 sm:flex-row">
           <p>© {new Date().getFullYear()} Haven Ltd. All rights reserved.</p>
-          <p>Prices in GBP (£) · Designed in Copenhagen</p>
           <p>
             Designed by{" "}
             <a
