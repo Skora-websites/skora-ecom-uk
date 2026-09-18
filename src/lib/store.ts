@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   products as seedProducts,
   type CategorySlug,
@@ -38,6 +38,8 @@ export interface StoreApi {
   deleteProduct: (slug: string) => void;
   toggleProductStatus: (slug: string) => void;
   resetStore: () => void;
+  /** True once the MongoDB API has responded successfully at least once. */
+  isServerBacked: boolean;
 }
 
 const STORAGE_KEY = "haven-store-products-v1";
@@ -116,6 +118,68 @@ function uniqueSlug(base: string, list: StoreProduct[]): string {
   return `${fallback}-${i}`;
 }
 
+// ---------------------------------------------------------------------------
+// MongoDB sync (via /api/products)
+// ---------------------------------------------------------------------------
+
+type ServerState = "unknown" | "available" | "unavailable";
+let serverState: ServerState = "unknown";
+let syncInFlight: Promise<void> | null = null;
+
+/**
+ * Pulls the catalogue from MongoDB (through the API) and replaces the local
+ * snapshot. No-ops when the API is unavailable (local-only mode).
+ */
+export function syncFromServer(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (serverState === "unavailable") return Promise.resolve();
+  if (syncInFlight) return syncInFlight;
+
+  syncInFlight = (async () => {
+    try {
+      const res = await fetch("/api/products", { cache: "no-store" });
+      if (!res.ok) {
+        serverState = "unavailable";
+        return;
+      }
+      const data: unknown = await res.json();
+      const list =
+        data && typeof data === "object" && Array.isArray((data as { products?: unknown }).products)
+          ? ((data as { products: StoreProduct[] }).products)
+          : null;
+      if (!list) {
+        serverState = "unavailable";
+        return;
+      }
+      serverState = "available";
+      write(list);
+    } catch {
+      serverState = "unavailable";
+    } finally {
+      syncInFlight = null;
+    }
+  })();
+  return syncInFlight;
+}
+
+/** Fire-and-forget write-through to the API when MongoDB mode is active. */
+function syncToServer(url: string, method: string, body?: unknown) {
+  if (serverState !== "available") return;
+  void fetch(url, {
+    method,
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }).catch((error) => {
+    console.warn(`MongoDB sync failed (${method} ${url}):`, error);
+  });
+}
+
+export function isServerBacked(): boolean {
+  return serverState === "available";
+}
+
+// ---------------------------------------------------------------------------
+
 export function saveProduct(
   input: ProductInput,
   existingSlug?: string
@@ -127,21 +191,32 @@ export function saveProduct(
     ? list.map((p) => (p.slug === existingSlug ? product : p))
     : [...list, product];
   write(next);
+  if (existingSlug) {
+    syncToServer(`/api/products/${encodeURIComponent(existingSlug)}`, "PUT", input);
+  } else {
+    syncToServer("/api/products", "POST", product);
+  }
   return product;
 }
 
 export function deleteProduct(slug: string) {
   write(readSnapshot().filter((p) => p.slug !== slug));
+  syncToServer(`/api/products/${encodeURIComponent(slug)}`, "DELETE");
 }
 
 export function toggleProductStatus(slug: string) {
-  write(
-    readSnapshot().map((p) =>
-      p.slug === slug
-        ? { ...p, status: p.status === "active" ? "draft" : "active" }
-        : p
-    )
+  const next = readSnapshot().map((p) =>
+    p.slug === slug
+      ? { ...p, status: p.status === "active" ? ("draft" as const) : ("active" as const) }
+      : p
   );
+  write(next);
+  const toggled = next.find((p) => p.slug === slug);
+  if (toggled) {
+    syncToServer(`/api/products/${encodeURIComponent(slug)}`, "PATCH", {
+      status: toggled.status,
+    });
+  }
 }
 
 export function resetStore() {
@@ -149,6 +224,11 @@ export function resetStore() {
 }
 
 export function useStore(): StoreApi {
+  // Hydrate from MongoDB once on first mount in any component that uses the store.
+  useEffect(() => {
+    void syncFromServer();
+  }, []);
+
   const products = useSyncExternalStore(
     subscribe,
     readSnapshot,
@@ -163,5 +243,6 @@ export function useStore(): StoreApi {
     deleteProduct,
     toggleProductStatus,
     resetStore,
+    isServerBacked: serverState === "available",
   };
 }
