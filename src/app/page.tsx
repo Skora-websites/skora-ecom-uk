@@ -4,7 +4,6 @@ import { HomeCategories } from "@/components/home/home-categories";
 import { HomeNewArrivals } from "@/components/home/home-new-arrivals";
 import { HomeValues } from "@/components/home/home-values";
 import { HomeInspiration } from "@/components/home/home-inspiration";
-import { HomeNewsletter } from "@/components/home/home-newsletter";
 
 export const metadata: Metadata = {
   title: "Haven | Modern Scandinavian Furniture and Home",
@@ -37,7 +36,6 @@ export default function Home() {
       <HomeNewArrivals />
       <HomeValues />
       <HomeInspiration />
-      <HomeNewsletter />
     </>
   );
 }
